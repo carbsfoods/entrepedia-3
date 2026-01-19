@@ -53,6 +53,22 @@ export function CreatePostCard({ onPostCreated }: CreatePostCardProps) {
 
     setLoading(true);
     try {
+      // Ensure profile exists before creating post
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        // Create profile if it doesn't exist
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({ id: user.id });
+        
+        if (profileError) throw new Error('Please complete your profile setup first');
+      }
+
       let imageUrl = null;
 
       // Upload image if selected
