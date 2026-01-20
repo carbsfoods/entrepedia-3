@@ -331,7 +331,10 @@ export default function Messages() {
 
     try {
       const { data: conversationId, error } = await supabase
-        .rpc('get_or_create_conversation', { other_user_id: otherUserId });
+        .rpc('get_or_create_conversation', { 
+          other_user_id: otherUserId,
+          current_user_id: user.id 
+        });
 
       if (error) throw error;
 
