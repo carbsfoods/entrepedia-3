@@ -6,12 +6,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -65,13 +71,13 @@ const PERMISSION_CONFIG: {
 export function CommunityPermissionsDialog({ communityId, creatorId }: CommunityPermissionsDialogProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
   
   const {
     membersWithPermissions,
     grantPermission,
     revokePermission,
-    refresh,
   } = useCommunityPermissions(communityId);
 
   const handleTogglePermission = async (
@@ -112,16 +118,20 @@ export function CommunityPermissionsDialog({ communityId, creatorId }: Community
 
   // Filter out the creator from the members list (creator has all permissions by default)
   const managableMembers = membersWithPermissions.filter(m => m.user_id !== creatorId);
+  const selectedMember = managableMembers.find(m => m.user_id === selectedMemberId);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (!isOpen) setSelectedMemberId(null);
+    }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Shield className="mr-2 h-4 w-4" />
           Manage Permissions
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl max-h-[90vh]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
@@ -129,90 +139,120 @@ export function CommunityPermissionsDialog({ communityId, creatorId }: Community
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[60vh] pr-4">
-          {managableMembers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No members to manage permissions for.</p>
-              <p className="text-sm">Invite members to your community first.</p>
+        {managableMembers.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>No members to manage permissions for.</p>
+            <p className="text-sm">Invite members to your community first.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Member Selection Dropdown */}
+            <div className="space-y-2">
+              <Label>Select Member</Label>
+              <Select
+                value={selectedMemberId || ''}
+                onValueChange={(value) => setSelectedMemberId(value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose a member..." />
+                </SelectTrigger>
+                <SelectContent className="bg-background border shadow-lg z-50">
+                  {managableMembers.map((member) => (
+                    <SelectItem key={member.user_id} value={member.user_id}>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarImage src={member.avatar_url || ''} />
+                          <AvatarFallback className="text-xs">
+                            {member.full_name?.charAt(0) || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{member.full_name || member.username || 'Anonymous'}</span>
+                        {member.role === 'admin' && (
+                          <Badge variant="secondary" className="gap-1 text-xs py-0">
+                            <Crown className="h-2.5 w-2.5" />
+                            Admin
+                          </Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ) : (
-            <div className="space-y-6">
-              {managableMembers.map((member) => (
-                <div key={member.user_id} className="space-y-4">
-                  <div className="flex items-center gap-3">
+
+            {/* Selected Member Permissions */}
+            {selectedMember && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 pb-2">
                     <Avatar className="h-10 w-10">
-                      <AvatarImage src={member.avatar_url || ''} />
+                      <AvatarImage src={selectedMember.avatar_url || ''} />
                       <AvatarFallback className="gradient-primary text-white">
-                        {member.full_name?.charAt(0) || 'U'}
+                        {selectedMember.full_name?.charAt(0) || 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground truncate">
-                        {member.full_name || 'Anonymous'}
-                      </p>
-                      {member.username && !/^\d+$/.test(member.username) && (
-                        <p className="text-xs text-muted-foreground">@{member.username}</p>
+                    <div>
+                      <p className="font-medium">{selectedMember.full_name || 'Anonymous'}</p>
+                      {selectedMember.username && !/^\d+$/.test(selectedMember.username) && (
+                        <p className="text-xs text-muted-foreground">@{selectedMember.username}</p>
                       )}
                     </div>
-                    {member.role === 'admin' && (
-                      <Badge variant="secondary" className="gap-1">
-                        <Crown className="h-3 w-3" />
-                        Admin
-                      </Badge>
-                    )}
                   </div>
 
-                  <div className="grid gap-3 pl-13">
-                    {PERMISSION_CONFIG.map((config) => {
-                      const hasPermission = member.permissions.includes(config.type);
-                      const key = `${member.user_id}-${config.type}`;
-                      const isLoading = loadingStates[key];
-                      const Icon = config.icon;
+                  {PERMISSION_CONFIG.map((config) => {
+                    const hasPermission = selectedMember.permissions.includes(config.type);
+                    const key = `${selectedMember.user_id}-${config.type}`;
+                    const isLoading = loadingStates[key];
+                    const Icon = config.icon;
 
-                      return (
-                        <div 
-                          key={config.type}
-                          className="flex items-start justify-between gap-4 p-3 rounded-lg bg-muted/50"
-                        >
-                          <div className="flex items-start gap-3">
-                            <Icon className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                            <div className="space-y-0.5">
-                              <Label 
-                                htmlFor={key}
-                                className="text-sm font-medium cursor-pointer"
-                              >
-                                {config.label}
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                {config.description}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {isLoading && (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            )}
-                            <Switch
-                              id={key}
-                              checked={hasPermission}
-                              onCheckedChange={() => 
-                                handleTogglePermission(member.user_id, config.type, hasPermission)
-                              }
-                              disabled={isLoading}
-                            />
+                    return (
+                      <div 
+                        key={config.type}
+                        className="flex items-start justify-between gap-4 p-3 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-start gap-3">
+                          <Icon className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                          <div className="space-y-0.5">
+                            <Label 
+                              htmlFor={key}
+                              className="text-sm font-medium cursor-pointer"
+                            >
+                              {config.label}
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              {config.description}
+                            </p>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  <Separator />
+                        <div className="flex items-center gap-2">
+                          {isLoading && (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          )}
+                          <Switch
+                            id={key}
+                            checked={hasPermission}
+                            onCheckedChange={() => 
+                              handleTogglePermission(selectedMember.user_id, config.type, hasPermission)
+                            }
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
+              </>
+            )}
+
+            {!selectedMember && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Select a member to manage their permissions
+              </p>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
